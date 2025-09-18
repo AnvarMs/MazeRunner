@@ -37,7 +37,7 @@ public void GenerateMazePublic()
         {
             for (int z = 0; z < maze_z_size; z++)
             {
-                Vector3 pos = new Vector3(x, 0, z);
+                Vector3 pos = new Vector3(x*.2f+x, 0, z*.2f+z);
                 GameObject cellObj = Instantiate(mazeCellPrefab, pos, Quaternion.identity, transform);
                 MazeCell cell = cellObj.GetComponent<MazeCell>();
                 mazeCells[x, z] = cell;
