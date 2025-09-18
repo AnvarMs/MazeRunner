@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Fusion;
 
 public class MazeManager : MonoBehaviour
 {
@@ -147,4 +148,5 @@ public void GenerateMazePublic()
             mazeCells[next.x, next.y].DeactivateWall(Direction.Frond);
         }
     }
+
 }
