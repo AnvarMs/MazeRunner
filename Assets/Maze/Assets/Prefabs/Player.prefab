@@ -891,8 +891,6 @@ GameObject:
   - component: {fileID: -1328980528422895269}
   - component: {fileID: 6373472708449255974}
   - component: {fileID: 8900022919639184469}
-  - component: {fileID: 7838574209620603035}
-  - component: {fileID: 5154122622033036182}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -1958,4 +1956,3 @@ SkinnedMeshRenderer:
     m_Center: {x: 0.005848459, y: 0.011094973, z: 0.023878079}
     m_Extent: {x: 0.00902122, y: 0.0046833744, z: 0.0044289986}
   m_DirtyAABB: 0
-
