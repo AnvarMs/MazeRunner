@@ -21,7 +21,7 @@ public class HorrorNPC : MonoBehaviour
     private MazeManager maze;
     private Vector2Int lastCell;
 
-    private NPCState currentState = NPCState.Patrolling;
+    private NPCState currentState = NPCState.Disappearing;
 
     public void StartNPC()
     {
@@ -33,6 +33,7 @@ public class HorrorNPC : MonoBehaviour
         transform.position = new Vector3(cellWorldPos.x, transform.position.y, cellWorldPos.z);
         
         lastCell = currentCell;
+        currentState = NPCState.Disappearing;
         StartCoroutine(StateMachineRoutine());
     }
 
@@ -67,7 +68,7 @@ public class HorrorNPC : MonoBehaviour
     IEnumerator Patrol()
     {
         // 10% chance to disappear (was 0.1% before)
-        if (Random.value < 0.1f)
+        if (Random.value < 0.01f)
         {
             currentState = NPCState.Disappearing;
             yield break;
