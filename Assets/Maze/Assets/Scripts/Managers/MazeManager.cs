@@ -4,16 +4,16 @@ using Fusion;
 
 public class MazeManager : MonoBehaviour
 {
-    [SerializeField] private GameObject mazeCellPrefab,mazeCellprefabSmall, playerPrefab, triggerPrefab;
+    [SerializeField] private GameObject mazeCellPrefab,mazeCellprefabSmall,triggerPrefab;
     [SerializeField] private int maze_x_size = 10, maze_z_size = 10;
-    [SerializeField] private Vector2Int startCell, endCell;
+    [SerializeField] private Vector3 startPos, endPos;
 
     private MazeCell[,] mazeCells;
 public int MazeXSize => maze_x_size;
 public int MazeZSize => maze_z_size;
     // Inside MazeManager
-    public Vector2Int EndSell => endCell;
-    public Vector2Int StartCell => startCell;
+    public Vector3 EndPos => endPos;
+    public Vector3 StartPos => startPos;
     public void SetMazeSize(int x, int z)
     {
         maze_x_size = x;
@@ -131,19 +131,17 @@ public List<Vector2Int> GetWalkableNeighbors(Vector2Int cell)
         }
 
         // 4. Random start & end cells for gameplay
-         startCell = new Vector2Int(Random.Range(0, maze_x_size), 0);
-         endCell = new Vector2Int(Random.Range(0, maze_x_size), maze_z_size - 1);
+        Vector2Int start = new Vector2Int(Random.Range(0, maze_x_size), 0);
+        Vector2Int end= new Vector2Int(Random.Range(0, maze_x_size), maze_z_size - 1);
         // Get the world positions of the start and end cells
-        Vector3 startPos = mazeCells[startCell.x, startCell.y].transform.position;
-        Vector3 endPos = mazeCells[endCell.x, endCell.y].transform.position;
+        startPos = mazeCells[start.x, start.y].transform.position;
+        endPos = mazeCells[end.x, end.y].transform.position;
 
         // Optional: Adjust Y if needed so player/trigger sits on the floor
         startPos.y += 0.5f;
         endPos.y += 0.5f;
 
         // Instantiate prefabs at the cell positions
-        playerPrefab.transform.position = startPos;
-        playerPrefab.transform.rotation = Quaternion.identity;
         triggerPrefab.transform.position = endPos;
         triggerPrefab.transform.rotation = Quaternion.identity;
 
