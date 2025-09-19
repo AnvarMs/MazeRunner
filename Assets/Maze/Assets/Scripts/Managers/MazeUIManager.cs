@@ -12,7 +12,7 @@ public class MazeUIManager : MonoBehaviour
 
     [Header("Controls")]
     [SerializeField] private Slider difficultySlider;
-    [SerializeField] private MazeManager mazeManager; // Drag your MazeManager here
+    [SerializeField] private NetworkedMazeManager mazeManager; // Drag your MazeManager here
     [SerializeField] private HorrorNPC horrorNPC;
 
     private bool isPaused = false;
