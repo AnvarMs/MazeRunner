@@ -40,6 +40,18 @@ public class MazeCell : MonoBehaviour
         }
 
 
-        if(wall!=null)wall.SetActive(false);
+        if (wall != null) wall.SetActive(false);
     }
+    public bool HasWall(Direction direction)
+{
+    switch (direction)
+    {
+        case Direction.Left: return _leftWall.activeSelf;
+        case Direction.Right: return _rightWall.activeSelf;
+        case Direction.Frond: return _frondWall.activeSelf;
+        case Direction.Back: return _backWall.activeSelf;
+    }
+    return false;
+}
+
 }

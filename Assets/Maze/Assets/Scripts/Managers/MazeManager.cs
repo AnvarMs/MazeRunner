@@ -4,16 +4,21 @@ using Fusion;
 
 public class MazeManager : MonoBehaviour
 {
-    [SerializeField] private GameObject mazeCellPrefab, playerPrefab, triggerPrefab;
+    [SerializeField] private GameObject mazeCellPrefab,mazeCellprefabSmall, playerPrefab, triggerPrefab;
     [SerializeField] private int maze_x_size = 10, maze_z_size = 10;
+    [SerializeField] private Vector2Int startCell, endCell;
 
     private MazeCell[,] mazeCells;
-// Inside MazeManager
-public void SetMazeSize(int x, int z)
-{
-    maze_x_size = x;
-    maze_z_size = z;
-}
+public int MazeXSize => maze_x_size;
+public int MazeZSize => maze_z_size;
+    // Inside MazeManager
+    public Vector2Int EndSell => endCell;
+    public Vector2Int StartCell => startCell;
+    public void SetMazeSize(int x, int z)
+    {
+        maze_x_size = x;
+        maze_z_size = z;
+    }
 
 public void GenerateMazePublic()
 {
@@ -31,15 +36,61 @@ public void GenerateMazePublic()
     GenerateMaze();
 }
 
+public Vector3 GetCellWorldPos(Vector2Int cell)
+{
+    return mazeCells[cell.x, cell.y].transform.position;
+}
+
+public Vector2Int GetRandomNeighborCell(Vector2Int current)
+{
+    // find open neighbors (no wall between cells)
+    List<Vector2Int> open = new List<Vector2Int>();
+    if (current.x > 0 && !mazeCells[current.x, current.y].HasWall(Direction.Left))
+        open.Add(new Vector2Int(current.x - 1, current.y));
+    if (current.x < maze_x_size - 1 && !mazeCells[current.x, current.y].HasWall(Direction.Right))
+        open.Add(new Vector2Int(current.x + 1, current.y));
+    if (current.y > 0 && !mazeCells[current.x, current.y].HasWall(Direction.Back))
+        open.Add(new Vector2Int(current.x, current.y - 1));
+    if (current.y < maze_z_size - 1 && !mazeCells[current.x, current.y].HasWall(Direction.Frond))
+        open.Add(new Vector2Int(current.x, current.y + 1));
+
+    if (open.Count == 0) return current;
+    return open[Random.Range(0, open.Count)];
+}
+public List<Vector2Int> GetWalkableNeighbors(Vector2Int cell)
+{
+    List<Vector2Int> neighbors = new List<Vector2Int>();
+
+    // Right
+    if (!mazeCells[cell.x, cell.y].HasWall(Direction.Right) && cell.x < maze_x_size - 1)
+        neighbors.Add(new Vector2Int(cell.x + 1, cell.y));
+
+    // Left
+    if (!mazeCells[cell.x, cell.y].HasWall(Direction.Left) && cell.x > 0)
+        neighbors.Add(new Vector2Int(cell.x - 1, cell.y));
+
+    // Front
+    if (!mazeCells[cell.x, cell.y].HasWall(Direction.Frond) && cell.y < maze_z_size - 1)
+        neighbors.Add(new Vector2Int(cell.x, cell.y + 1));
+
+    // Back
+    if (!mazeCells[cell.x, cell.y].HasWall(Direction.Back) && cell.y > 0)
+        neighbors.Add(new Vector2Int(cell.x, cell.y - 1));
+
+    return neighbors;
+}
     private void GenerateMaze()
     {
+        GameObject newCell = mazeCellPrefab;
         // 1. Instantiate the cells
+
         for (int x = 0; x < maze_x_size; x++)
         {
             for (int z = 0; z < maze_z_size; z++)
             {
-                Vector3 pos = new Vector3(x*.2f+x, 0, z*.2f+z);
-                GameObject cellObj = Instantiate(mazeCellPrefab, pos, Quaternion.identity, transform);
+                Vector3 pos = new Vector3(x, 0, z);
+                newCell = newCell == mazeCellPrefab ? mazeCellprefabSmall : mazeCellPrefab;
+                GameObject cellObj = Instantiate(newCell, pos, Quaternion.identity, transform);
                 MazeCell cell = cellObj.GetComponent<MazeCell>();
                 mazeCells[x, z] = cell;
             }
@@ -80,8 +131,8 @@ public void GenerateMazePublic()
         }
 
         // 4. Random start & end cells for gameplay
-        Vector2Int startCell = new Vector2Int(Random.Range(0, maze_x_size), 0);
-        Vector2Int endCell = new Vector2Int(Random.Range(0, maze_x_size), maze_z_size - 1);
+         startCell = new Vector2Int(Random.Range(0, maze_x_size), 0);
+         endCell = new Vector2Int(Random.Range(0, maze_x_size), maze_z_size - 1);
         // Get the world positions of the start and end cells
         Vector3 startPos = mazeCells[startCell.x, startCell.y].transform.position;
         Vector3 endPos = mazeCells[endCell.x, endCell.y].transform.position;
