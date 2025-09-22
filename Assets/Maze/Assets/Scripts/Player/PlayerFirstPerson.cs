@@ -148,4 +148,8 @@ public class PlayerFirstPerson : MonoBehaviour
     {
         transform.position = pos;
     }
+    public void ResetCamara()
+    {
+        cameraTransform.rotation =new  Quaternion(0,0,0,0);
+    }
 }

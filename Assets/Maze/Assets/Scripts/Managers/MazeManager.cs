@@ -6,6 +6,8 @@ public class MazeManager : MonoBehaviour
 {
     [SerializeField] private GameObject mazeCellPrefab,mazeCellprefabSmall,triggerPrefab;
     [SerializeField] private int maze_x_size = 10, maze_z_size = 10;
+    [SerializeField] private float cellSize = 3f; // set to 3 if prefab is 3x3
+
     [SerializeField] private Vector3 startPos, endPos;
 
     private MazeCell[,] mazeCells;
@@ -14,6 +16,8 @@ public int MazeZSize => maze_z_size;
     // Inside MazeManager
     public Vector3 EndPos => endPos;
     public Vector3 StartPos => startPos;
+    public float CellSize => cellSize;
+
     public void SetMazeSize(int x, int z)
     {
         maze_x_size = x;
@@ -38,7 +42,7 @@ public void GenerateMazePublic()
 
 public Vector3 GetCellWorldPos(Vector2Int cell)
 {
-    return mazeCells[cell.x, cell.y].transform.position;
+    return new Vector3(cell.x * cellSize, 0, cell.y * cellSize);
 }
 
 public Vector2Int GetRandomNeighborCell(Vector2Int current)
@@ -81,20 +85,25 @@ public List<Vector2Int> GetWalkableNeighbors(Vector2Int cell)
 }
     private void GenerateMaze()
     {
-        GameObject newCell = mazeCellPrefab;
+        
         // 1. Instantiate the cells
 
         for (int x = 0; x < maze_x_size; x++)
-        {
-            for (int z = 0; z < maze_z_size; z++)
-            {
-                Vector3 pos = new Vector3(x, 0, z);
-                newCell = newCell == mazeCellPrefab ? mazeCellprefabSmall : mazeCellPrefab;
-                GameObject cellObj = Instantiate(newCell, pos, Quaternion.identity, transform);
-                MazeCell cell = cellObj.GetComponent<MazeCell>();
-                mazeCells[x, z] = cell;
-            }
-        }
+{
+    for (int z = 0; z < maze_z_size; z++)
+    {
+        Vector3 pos = new Vector3(x * cellSize, 0, z * cellSize);
+
+        // Alternate prefab
+        GameObject prefabToUse = (x + z) % 2 == 0 ? mazeCellPrefab : mazeCellprefabSmall;
+
+        GameObject cellObj = Instantiate(prefabToUse, pos, Quaternion.identity, transform);
+
+        MazeCell cell = cellObj.GetComponent<MazeCell>();
+        mazeCells[x, z] = cell;
+    }
+}
+
 
         // 2. Pick random start cell
         int startX = Random.Range(0, maze_x_size);

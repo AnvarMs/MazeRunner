@@ -12,13 +12,13 @@ public enum NPCState
 
 public class HorrorNPC : MonoBehaviour
 {
-    public float moveSpeed = 2f;
+    public float moveSpeed = 1f;
+    public float caseSpeed = 2.5f;
     public float disappearMinTime = 3f;
     public float disappearMaxTime = 7f;
     public float stopDistance = .5f;
     public float catchDistance = 1.5f; // Distance to trigger caught state
-    public GameObject vfx;
-    public Collider trigger;
+     public GameObject vfx;
 
     public AudioSource audioSource;
     public AudioClip patrolClip;
@@ -28,18 +28,19 @@ public class HorrorNPC : MonoBehaviour
     private MazeManager maze;
     private Vector2Int lastCell;
     private bool isPlayerCaught = false;
-
+    private float speed;
     [SerializeField] private NPCState currentState = NPCState.Disappearing;
 
     void Start()
     {
         //player = GameObject.FindGameObjectWithTag("Player").transform;
-        
+
         // Initialize audio
         audioSource.clip = patrolClip;
         audioSource.loop = true;
-        
-      
+
+       
+
     }
 
     public void StartNPC()
@@ -62,10 +63,12 @@ public class HorrorNPC : MonoBehaviour
             switch (currentState)
             {
                 case NPCState.Patrolling:
+                    speed = moveSpeed;
                     yield return StartCoroutine(Patrol());
                     break;
 
                 case NPCState.Chasing:
+                    speed = caseSpeed;
                     yield return StartCoroutine(ChasePlayer());
                     break;
 
@@ -91,11 +94,11 @@ public class HorrorNPC : MonoBehaviour
             audioSource.Play();
         }
 
-        // 10% chance to disappear
-        if (Random.value < 0.1f)
+        // 5% chance to disappear
+        if (Random.value < 0.05f)
         {
-            currentState = NPCState.Disappearing;
-            yield break;
+           // currentState = NPCState.Disappearing;
+           // yield break;
         }
 
         Vector2Int currentCell = GetCellFromPosition(transform.position);
@@ -124,14 +127,12 @@ public class HorrorNPC : MonoBehaviour
     {
         float time = Random.Range(disappearMinTime, disappearMaxTime);
         vfx.SetActive(false);
-        trigger.enabled = false;
         audioSource.Stop();
 
         yield return new WaitForSeconds(time);
 
         TeleportToRandomPosition();
         vfx.SetActive(true);
-        trigger.enabled = true;
         currentState = NPCState.Patrolling;
     }
 
@@ -167,7 +168,7 @@ public class HorrorNPC : MonoBehaviour
         {
             // Check distance to player
             float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-            
+
             // Transition to Caught state if close enough
             if (distanceToPlayer <= catchDistance)
             {
@@ -210,52 +211,45 @@ public class HorrorNPC : MonoBehaviour
         audioSource.loop = false;
         audioSource.PlayOneShot(catchClip);
 
-        // Freeze player and NPC
-        if (player != null)
-        {
-            PlayerFirstPerson controls = player.GetComponent<PlayerFirstPerson>();
-            if (controls != null) controls.isCanMove = false;
+     // Freeze player and NPC
+PlayerFirstPerson playerControls = player.GetComponent<PlayerFirstPerson>();
+playerControls.isCanMove = false;
+playerControls.ResetCamara();
 
-            // Face each other
-            Vector3 toPlayer = (player.position - transform.position).normalized;
-            toPlayer.y = 0;
-            Quaternion targetRotation = Quaternion.LookRotation(toPlayer);
+// Position the player at offset
+Vector3 offsetPos = transform.position + transform.forward * 0.3f;
+offsetPos.y = transform.position.y+.366f; // keep player’s original Y height
+player.position = offsetPos;
+
+// Make the player face the NPC but only on Y axis (face-to-face)
+Vector3 lookDir = transform.position - player.position;
+lookDir.y = 0f; // ignore vertical difference
+if (lookDir.sqrMagnitude > 0.001f)
+{
+    Quaternion lookRotation = Quaternion.LookRotation(lookDir);
+    // Ensure only Y-axis rotation is applied
+    Vector3 eulerAngles = lookRotation.eulerAngles;
+    player.rotation = Quaternion.Euler(0, eulerAngles.y, 0);
+}
+
+
             
-            float rotationTime = 0.5f;
-            float elapsedTime = 0f;
-            Quaternion startRotation = transform.rotation;
-            
-            while (elapsedTime < rotationTime)
-            {
-                transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsedTime / rotationTime);
-                elapsedTime += Time.deltaTime;
-                yield return null;
-            }
-            transform.rotation = targetRotation;
-
-            // Rotate player to face NPC
-            Vector3 toNpc = (transform.position - player.position).normalized;
-            toNpc.y = 0;
-            player.rotation = Quaternion.LookRotation(toNpc);
-        }
-
+        
         // Wait during "caught" stare
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(4f);
 
         // Reset player
-        if (player != null)
-        {
-            PlayerFirstPerson controls = player.GetComponent<PlayerFirstPerson>();
-            if (controls != null) controls.isCanMove = true;
-            player.position = maze.StartPos;
-        }
+        playerControls.isCanMove = true;
+        player.position= maze.StartPos;
+        player = null;
+
 
         // Reset NPC
         isPlayerCaught = false;
         TeleportToRandomPosition();
         vfx.SetActive(true);
-        trigger.enabled = true;
-        
+      
+
         // Return to patrolling
         currentState = NPCState.Patrolling;
     }
@@ -280,7 +274,7 @@ public class HorrorNPC : MonoBehaviour
 
         while (journey <= 1f && !isPlayerCaught)
         {
-            journey += moveSpeed * Time.deltaTime / distance;
+            journey += speed * Time.deltaTime / distance;
             transform.position = Vector3.Lerp(startPos, targetPos, journey);
             yield return null;
         }
@@ -293,10 +287,18 @@ public class HorrorNPC : MonoBehaviour
 
     Vector2Int GetCellFromPosition(Vector3 pos)
     {
-        int x = Mathf.RoundToInt(pos.x);
-        int z = Mathf.RoundToInt(pos.z);
-        return new Vector2Int(Mathf.Clamp(x, 0, maze.MazeXSize - 1), Mathf.Clamp(z, 0, maze.MazeZSize - 1));
+        // Convert world pos to cell indices based on cell size
+        int x = Mathf.RoundToInt(pos.x / maze.CellSize);
+        int z = Mathf.RoundToInt(pos.z / maze.CellSize);
+
+        x = Mathf.Clamp(x, 0, maze.MazeXSize - 1);
+        z = Mathf.Clamp(z, 0, maze.MazeZSize - 1);
+
+        return new Vector2Int(x, z);
     }
+
+
+
 
     List<Vector2Int> FindPath(Vector2Int start, Vector2Int goal)
     {
@@ -345,18 +347,7 @@ public class HorrorNPC : MonoBehaviour
         return path;
     }
 
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Player") && currentState != NPCState.Caught)
-        {
-            player = other.transform;
-            currentState = NPCState.Chasing;
 
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.Play("Scream");
-        }
-    }
-    
     // Optional: Add a method to stop all music when in despair
     public void StopAllMusic()
     {
@@ -364,7 +355,75 @@ public class HorrorNPC : MonoBehaviour
         if (AudioManager.Instance != null)
         {
             // Assuming AudioManager has a method to stop all music
-           // AudioManager.Instance.StopAllMusic();
+            // AudioManager.Instance.StopAllMusic();
         }
     }
+private Vector3 gizmoCenter; 
+private Vector3 gizmoHalfExtents; 
+private Quaternion gizmoRotation; 
+private Vector3 gizmoDirection; 
+private float gizmoDistance;
+
+private void Update()
+{
+    // BoxCast settings               
+    gizmoHalfExtents = new Vector3(1.5f, 1.5f, 1.5f);
+    gizmoDistance = 5f;
+    gizmoDirection = transform.forward;
+    gizmoRotation = transform.rotation;
+    gizmoCenter = transform.position;
+
+    if (currentState == NPCState.Caught) return;
+
+    // First BoxCast - Forward detection (your original)
+    RaycastHit hit;
+    if (Physics.BoxCast(gizmoCenter, gizmoHalfExtents, gizmoDirection, out hit, gizmoRotation, gizmoDistance))
+    {
+        if (hit.collider.CompareTag("Player"))
+        {
+            player = hit.collider.transform;
+            currentState = NPCState.Chasing;
+
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.Play("Scream");
+        }
+    }
+
+    // Second BoxCast - Check at NPC position (start box) for players approaching from behind/sides
+    Collider[] overlapping = Physics.OverlapBox(gizmoCenter, gizmoHalfExtents, gizmoRotation);
+    foreach (Collider col in overlapping)
+    {
+        if (col.CompareTag("Player"))
+        {
+            player = col.transform;
+            currentState = NPCState.Chasing;
+
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.Play("Scream");
+            break; // Exit loop once player is found
+        }
+    }
+}
+private void OnDrawGizmos()
+{
+    // Only draw in Play Mode when values are valid
+    if (!Application.isPlaying) return;
+
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(gizmoCenter, catchDistance);
+
+    // Draw start box
+        Matrix4x4 matrix = Matrix4x4.TRS(gizmoCenter, gizmoRotation, Vector3.one);
+    Gizmos.color = Color.red;
+    Gizmos.matrix = matrix;
+    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
+
+    // Draw end box
+    Vector3 end = gizmoCenter + gizmoDirection.normalized * gizmoDistance;
+    matrix = Matrix4x4.TRS(end, gizmoRotation, Vector3.one);
+    Gizmos.matrix = matrix;
+    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
+}
+
+    
 }
