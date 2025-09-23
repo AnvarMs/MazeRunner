@@ -10,6 +10,9 @@ public class MazeUIManager : MonoBehaviour
     [SerializeField] private GameObject panelWin;
     [SerializeField] private GameObject panelPause;
 
+    [Header("Player")]
+    [SerializeField] private GameObject player; 
+
     [Header("Controls")]
     [SerializeField] private Slider difficultySlider;
     [SerializeField] private MazeManager mazeManager; // Drag your MazeManager here
@@ -19,6 +22,7 @@ public class MazeUIManager : MonoBehaviour
 
     private void Start()
     {
+        
         // Show main menu at start
         panelMainMenu.SetActive(true);
         panelWin.SetActive(false);
@@ -29,6 +33,7 @@ public class MazeUIManager : MonoBehaviour
         Cursor.visible = true;
         isPaused = false;
         Time.timeScale = 0f;
+        
     }
 
     // Called by Start Button
@@ -40,6 +45,9 @@ public class MazeUIManager : MonoBehaviour
         mazeManager.GenerateMazePublic();    // regenerate maze
         horrorNPC.StartNPC();
         panelMainMenu.SetActive(false);
+
+        // Player spawning
+        player.GetComponent<PlayerFirstPerson>().SpownAt(mazeManager.StartPos);
 
         // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;

@@ -19,6 +19,8 @@ public class PlayerFirstPerson : MonoBehaviour
     [Header("References")]
     public Transform cameraTransform;
 
+    [Header("Settings")]
+    public bool isCanMove;
     private CharacterController controller;
     private AudioSource audioSource;
 
@@ -37,6 +39,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Awake()
     {
+        isCanMove = true;
         controller = GetComponent<CharacterController>();
         audioSource = GetComponent<AudioSource>();
 
@@ -69,6 +72,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Update()
     {
+        if (!isCanMove) return;
         HandleLook();
         HandleMovement();
         HandleFootsteps();
@@ -77,7 +81,7 @@ public class PlayerFirstPerson : MonoBehaviour
     private void HandleLook()
     {
         // New input system look
-        float mouseX = lookInput.x * mouseSensitivity * Time.deltaTime * 60f; 
+        float mouseX = lookInput.x * mouseSensitivity * Time.deltaTime * 60f;
         float mouseY = lookInput.y * mouseSensitivity * Time.deltaTime * 60f;
 
         xRotation -= mouseY;
@@ -139,5 +143,13 @@ public class PlayerFirstPerson : MonoBehaviour
             lastFootstepPosition = transform.position;
             distanceSinceStep = 0f;
         }
+    }
+    public void SpownAt(Vector3 pos)
+    {
+        transform.position = pos;
+    }
+    public void ResetCamara()
+    {
+        cameraTransform.rotation =new  Quaternion(0,0,0,0);
     }
 }
