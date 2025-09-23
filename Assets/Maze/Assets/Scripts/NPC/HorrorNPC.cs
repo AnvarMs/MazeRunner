@@ -18,7 +18,8 @@ public class HorrorNPC : MonoBehaviour
     public float disappearMaxTime = 7f;
     public float stopDistance = .5f;
     public float catchDistance = 1.5f; // Distance to trigger caught state
-     public GameObject vfx;
+    public float detectionRadius = 5f; // Sphere radius for detecting player
+    public GameObject vfx;
 
     public AudioSource audioSource;
     public AudioClip patrolClip;
@@ -33,14 +34,9 @@ public class HorrorNPC : MonoBehaviour
 
     void Start()
     {
-        //player = GameObject.FindGameObjectWithTag("Player").transform;
-
         // Initialize audio
         audioSource.clip = patrolClip;
         audioSource.loop = true;
-
-       
-
     }
 
     public void StartNPC()
@@ -97,8 +93,10 @@ public class HorrorNPC : MonoBehaviour
         // 5% chance to disappear
         if (Random.value < 0.05f)
         {
-           // currentState = NPCState.Disappearing;
-           // yield break;
+            currentState = NPCState.Disappearing;
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.Play("Scream");
+            yield break;
         }
 
         Vector2Int currentCell = GetCellFromPosition(transform.position);
@@ -177,7 +175,7 @@ public class HorrorNPC : MonoBehaviour
             }
 
             // If player is too far, return to patrolling
-            if (distanceToPlayer > 10f)
+            if (distanceToPlayer > detectionRadius * 2f)
             {
                 currentState = NPCState.Patrolling;
                 yield break;
@@ -211,47 +209,45 @@ public class HorrorNPC : MonoBehaviour
         audioSource.loop = false;
         audioSource.PlayOneShot(catchClip);
 
-     // Freeze player and NPC
-PlayerFirstPerson playerControls = player.GetComponent<PlayerFirstPerson>();
-playerControls.isCanMove = false;
-playerControls.ResetCamara();
+        // Freeze player and NPC
+        PlayerFirstPerson playerControls = player.GetComponent<PlayerFirstPerson>();
+        playerControls.isCanMove = false;
+        playerControls.ResetCamara();
 
-// Position the player at offset
-Vector3 offsetPos = transform.position + transform.forward * 0.3f;
-offsetPos.y = transform.position.y+.366f; // keep player’s original Y height
-player.position = offsetPos;
+        // Position the player at offset
+        Vector3 offsetPos = transform.position + transform.forward * 0.3f;
+        offsetPos.y = transform.position.y + .366f; // keep player's original Y height
+        player.position = offsetPos;
 
-// Make the player face the NPC but only on Y axis (face-to-face)
-Vector3 lookDir = transform.position - player.position;
-lookDir.y = 0f; // ignore vertical difference
-if (lookDir.sqrMagnitude > 0.001f)
-{
-    Quaternion lookRotation = Quaternion.LookRotation(lookDir);
-    // Ensure only Y-axis rotation is applied
-    Vector3 eulerAngles = lookRotation.eulerAngles;
-    player.rotation = Quaternion.Euler(0, eulerAngles.y, 0);
-}
+        // Make the player face the NPC but only on Y axis (face-to-face)
+        Vector3 lookDir = transform.position - player.position;
+        lookDir.y = 0f; // ignore vertical difference
+        if (lookDir.sqrMagnitude > 0.001f)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(lookDir);
+            // Ensure only Y-axis rotation is applied
+            Vector3 eulerAngles = lookRotation.eulerAngles;
+            player.rotation = Quaternion.Euler(0, eulerAngles.y, 0);
+        }
 
-
-            
-        
         // Wait during "caught" stare
         yield return new WaitForSeconds(4f);
-
+        playerControls.enabled = false;
+        yield return null;
         // Reset player
+        player.position = maze.StartPos;
+        yield return new WaitForSeconds(1f);
+        playerControls.enabled = true;
+        
         playerControls.isCanMove = true;
-        player.position= maze.StartPos;
         player = null;
-
 
         // Reset NPC
         isPlayerCaught = false;
-        TeleportToRandomPosition();
         vfx.SetActive(true);
-      
 
         // Return to patrolling
-        currentState = NPCState.Patrolling;
+        currentState = NPCState.Disappearing;
     }
 
     IEnumerator MoveToPosition(Vector3 targetPos)
@@ -296,9 +292,6 @@ if (lookDir.sqrMagnitude > 0.001f)
 
         return new Vector2Int(x, z);
     }
-
-
-
 
     List<Vector2Int> FindPath(Vector2Int start, Vector2Int goal)
     {
@@ -347,7 +340,6 @@ if (lookDir.sqrMagnitude > 0.001f)
         return path;
     }
 
-
     // Optional: Add a method to stop all music when in despair
     public void StopAllMusic()
     {
@@ -358,72 +350,68 @@ if (lookDir.sqrMagnitude > 0.001f)
             // AudioManager.Instance.StopAllMusic();
         }
     }
-private Vector3 gizmoCenter; 
-private Vector3 gizmoHalfExtents; 
-private Quaternion gizmoRotation; 
-private Vector3 gizmoDirection; 
-private float gizmoDistance;
 
-private void Update()
-{
-    // BoxCast settings               
-    gizmoHalfExtents = new Vector3(1.5f, 1.5f, 1.5f);
-    gizmoDistance = 5f;
-    gizmoDirection = transform.forward;
-    gizmoRotation = transform.rotation;
-    gizmoCenter = transform.position;
-
-    if (currentState == NPCState.Caught) return;
-
-    // First BoxCast - Forward detection (your original)
-    RaycastHit hit;
-    if (Physics.BoxCast(gizmoCenter, gizmoHalfExtents, gizmoDirection, out hit, gizmoRotation, gizmoDistance))
+    private void Update()
     {
-        if (hit.collider.CompareTag("Player"))
-        {
-            player = hit.collider.transform;
-            currentState = NPCState.Chasing;
+        // Don't detect player if already caught or disappearing
+        if (currentState == NPCState.Caught || currentState == NPCState.Disappearing) 
+            return;
 
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.Play("Scream");
+        // Find player if not already assigned
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+            else
+                return; // No player found
+        }
+
+        // Sphere-based detection for player from all directions
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, detectionRadius);
+        foreach (Collider col in hitColliders)
+        {
+            if (col.CompareTag("Player"))
+            {
+                player = col.transform;
+                
+                // Only transition to chasing if we're currently patrolling
+                if (currentState == NPCState.Patrolling)
+                {
+                    currentState = NPCState.Chasing;
+                    
+                    if (AudioManager.Instance != null)
+                        AudioManager.Instance.Play("Catch");
+                }
+                break; // Exit loop once player is found
+            }
+        }
+
+        // Additional check: if we're chasing and player gets too close, catch them immediately
+        if (currentState == NPCState.Chasing && player != null)
+        {
+            float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+            if (distanceToPlayer <= catchDistance)
+            {
+                currentState = NPCState.Caught;
+            }
         }
     }
 
-    // Second BoxCast - Check at NPC position (start box) for players approaching from behind/sides
-    Collider[] overlapping = Physics.OverlapBox(gizmoCenter, gizmoHalfExtents, gizmoRotation);
-    foreach (Collider col in overlapping)
+    private void OnDrawGizmos()
     {
-        if (col.CompareTag("Player"))
-        {
-            player = col.transform;
-            currentState = NPCState.Chasing;
+        if (!Application.isPlaying) return;
 
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.Play("Scream");
-            break; // Exit loop once player is found
-        }
-    }
-}
-private void OnDrawGizmos()
-{
-    // Only draw in Play Mode when values are valid
-    if (!Application.isPlaying) return;
+        // Draw detection sphere (yellow)
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectionRadius);
 
+        // Draw catch distance sphere (red)
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, catchDistance);
+
+        // Draw forward direction indicator
         Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(gizmoCenter, catchDistance);
-
-    // Draw start box
-        Matrix4x4 matrix = Matrix4x4.TRS(gizmoCenter, gizmoRotation, Vector3.one);
-    Gizmos.color = Color.red;
-    Gizmos.matrix = matrix;
-    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
-
-    // Draw end box
-    Vector3 end = gizmoCenter + gizmoDirection.normalized * gizmoDistance;
-    matrix = Matrix4x4.TRS(end, gizmoRotation, Vector3.one);
-    Gizmos.matrix = matrix;
-    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
-}
-
-    
+        Gizmos.DrawRay(transform.position, transform.forward * 2f);
+    }
 }

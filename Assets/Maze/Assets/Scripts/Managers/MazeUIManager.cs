@@ -11,7 +11,7 @@ public class MazeUIManager : MonoBehaviour
     [SerializeField] private GameObject panelPause;
 
     [Header("Player")]
-    [SerializeField] private GameObject player; 
+    [SerializeField] private GameObject player;
 
     [Header("Controls")]
     [SerializeField] private Slider difficultySlider;
@@ -22,7 +22,7 @@ public class MazeUIManager : MonoBehaviour
 
     private void Start()
     {
-        
+
         // Show main menu at start
         panelMainMenu.SetActive(true);
         panelWin.SetActive(false);
@@ -33,7 +33,7 @@ public class MazeUIManager : MonoBehaviour
         Cursor.visible = true;
         isPaused = false;
         Time.timeScale = 0f;
-        
+
     }
 
     // Called by Start Button
@@ -78,17 +78,12 @@ public class MazeUIManager : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-     public void OnQuit()
-{
-#if UNITY_EDITOR
-    UnityEditor.EditorApplication.isPlaying = false;
-#elif UNITY_WEBGL
-    // In WebGL – cannot quit app. Show menu or message instead.
-    ShowMainMenu(); // create a method to go back to your main menu
-#else
-    Application.Quit();
-#endif
-}
+    public void OnQuit()
+    {
+
+        // In WebGL – cannot quit app. Show menu or message instead.
+        ShowMainMenu(); // create a method to go back to your main menu
+    }
 
     private void ShowMainMenu()
     {
@@ -98,7 +93,7 @@ public class MazeUIManager : MonoBehaviour
         panelPause.SetActive(false);
 
         // Optionally reset Time.timeScale in case of pause
-        Time.timeScale = 1f;
+        Time.timeScale = 0f;
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

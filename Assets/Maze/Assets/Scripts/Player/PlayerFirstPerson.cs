@@ -39,7 +39,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Awake()
     {
-        isCanMove = true;
+        isCanMove = false;
         controller = GetComponent<CharacterController>();
         audioSource = GetComponent<AudioSource>();
 
@@ -65,8 +65,6 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
         lastFootstepPosition = transform.position;
     }
 
@@ -147,9 +145,10 @@ public class PlayerFirstPerson : MonoBehaviour
     public void SpownAt(Vector3 pos)
     {
         transform.position = pos;
+        isCanMove = true;
     }
     public void ResetCamara()
     {
-        cameraTransform.rotation =new  Quaternion(0,0,0,0);
+        cameraTransform.rotation = new Quaternion(0, 0, 0, 0);
     }
 }
