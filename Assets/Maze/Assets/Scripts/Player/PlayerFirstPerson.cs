@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem; // NEW INPUT SYSTEM
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(AudioSource))]
@@ -18,6 +19,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     [Header("References")]
     public Transform cameraTransform;
+    public MobileJoystick joystick;
 
     [Header("Settings")]
     public bool isCanMove;
@@ -80,6 +82,10 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void HandleLook()
     {
+        if (EventSystem.current.IsPointerOverGameObject()) return;
+        
+            
+        
         // New input system look
         float mouseX = lookInput.x * mouseSensitivity * Time.deltaTime * 60f;
         float mouseY = lookInput.y * mouseSensitivity * Time.deltaTime * 60f;
@@ -94,8 +100,8 @@ public class PlayerFirstPerson : MonoBehaviour
     private void HandleMovement()
     {
         // New input system move
-        float moveX = moveInput.x;
-        float moveZ = moveInput.y;
+        float moveX = moveInput.x+joystick.Horizontal;
+        float moveZ = moveInput.y+joystick.Vertical;
 
         Vector3 move = transform.right * moveX + transform.forward * moveZ;
         move *= walkSpeed;
@@ -151,5 +157,9 @@ public class PlayerFirstPerson : MonoBehaviour
     public void ResetCamara()
     {
         cameraTransform.rotation =new  Quaternion(0,0,0,0);
+    }
+    public void MobileInput(float x,float z)
+    {
+        moveInput = new Vector2(x, z);
     }
 }

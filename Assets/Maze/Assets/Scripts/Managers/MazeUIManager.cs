@@ -9,6 +9,7 @@ public class MazeUIManager : MonoBehaviour
     [SerializeField] private GameObject panelMainMenu;
     [SerializeField] private GameObject panelWin;
     [SerializeField] private GameObject panelPause;
+    [SerializeField] private GameObject panelMobileUI;
 
     [Header("Player")]
     [SerializeField] private GameObject player; 
@@ -18,6 +19,8 @@ public class MazeUIManager : MonoBehaviour
     [SerializeField] private MazeManager mazeManager; // Drag your MazeManager here
     [SerializeField] private HorrorNPC horrorNPC;
 
+    [Header("Settings")]
+    [SerializeField] private Toggle mobileUIToggle;
     private bool isPaused = false;
 
     private void Start()
@@ -33,6 +36,7 @@ public class MazeUIManager : MonoBehaviour
         Cursor.visible = true;
         isPaused = false;
         Time.timeScale = 0f;
+        mobileUIToggle.onValueChanged.AddListener(ToggleMobileUI);
         
     }
 
@@ -45,7 +49,7 @@ public class MazeUIManager : MonoBehaviour
         mazeManager.GenerateMazePublic();    // regenerate maze
         horrorNPC.StartNPC();
         panelMainMenu.SetActive(false);
-
+        ToggleMobileUI(mobileUIToggle.isOn);
         // Player spawning
         player.GetComponent<PlayerFirstPerson>().SpownAt(mazeManager.StartPos);
 
@@ -138,5 +142,10 @@ public class MazeUIManager : MonoBehaviour
     public void OnResume()
     {
         TogglePause();
+    }
+    public void ToggleMobileUI(bool isMobile)
+    {
+        panelMobileUI.SetActive(isMobile);
+
     }
 }

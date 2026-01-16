@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Maze/TestingMultiplayer.unity
     guid: cbf6082ecccca6142b4dc5232b49cf89
   - enabled: 1
