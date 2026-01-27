@@ -20,7 +20,7 @@ public class MazeUIManager : MonoBehaviour
     [SerializeField] private HorrorNPC horrorNPC;
 
     [Header("Settings")]
-    [SerializeField] private Toggle mobileUIToggle;
+    [SerializeField] private Toggle mobileUIToggle, mobileUIToggle2;
     private bool isPaused = false;
 
     private void Start()
@@ -37,7 +37,8 @@ public class MazeUIManager : MonoBehaviour
         isPaused = false;
         Time.timeScale = 0f;
         mobileUIToggle.onValueChanged.AddListener(ToggleMobileUI);
-        
+        mobileUIToggle2.onValueChanged.AddListener(ToggleMobileUI);
+
     }
 
     // Called by Start Button
@@ -51,12 +52,11 @@ public class MazeUIManager : MonoBehaviour
         panelMainMenu.SetActive(false);
         ToggleMobileUI(mobileUIToggle.isOn);
         // Player spawning
-        player.GetComponent<PlayerFirstPerson>().SpownAt(mazeManager.StartPos);
+        PlayerFirstPerson Pfp = player.GetComponent<PlayerFirstPerson>();
+        Pfp.SpownAt(mazeManager.StartPos);
+        Pfp.StartGame();
 
-        // Lock cursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-        Time.timeScale = 1f;
+      
     }
 
     // Called when the player reaches the goal
@@ -146,6 +146,7 @@ public class MazeUIManager : MonoBehaviour
     public void ToggleMobileUI(bool isMobile)
     {
         panelMobileUI.SetActive(isMobile);
-
+        mobileUIToggle.isOn = isMobile;
+        mobileUIToggle2.isOn = isMobile;
     }
 }

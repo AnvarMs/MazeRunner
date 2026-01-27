@@ -41,7 +41,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Awake()
     {
-        isCanMove = true;
+        isCanMove = false;
         controller = GetComponent<CharacterController>();
         audioSource = GetComponent<AudioSource>();
 
@@ -65,11 +65,13 @@ public class PlayerFirstPerson : MonoBehaviour
         controls.Player.Disable();
     }
 
-    private void Start()
+    public void StartGame()
     {
+        isCanMove = true;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         lastFootstepPosition = transform.position;
+        Time.timeScale = 1f;
     }
 
     private void Update()
