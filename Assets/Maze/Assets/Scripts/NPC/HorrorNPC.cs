@@ -17,8 +17,8 @@ public class HorrorNPC : MonoBehaviour
     public float disappearMinTime = 3f;
     public float disappearMaxTime = 7f;
     public float stopDistance = .5f;
-    public float catchDistance = 1.5f; // Distance to trigger caught state
-     public GameObject vfx;
+    public float catchDistance = 1.5f;
+    public GameObject vfx;
 
     public AudioSource audioSource;
     public AudioClip patrolClip;
@@ -33,20 +33,13 @@ public class HorrorNPC : MonoBehaviour
 
     void Start()
     {
-        //player = GameObject.FindGameObjectWithTag("Player").transform;
-
-        // Initialize audio
         audioSource.clip = patrolClip;
         audioSource.loop = true;
-
-       
-
     }
 
     public void StartNPC()
     {
         maze = FindAnyObjectByType<MazeManager>();
-        // Initialize NPC position to a valid cell
         Vector2Int currentCell = GetCellFromPosition(transform.position);
         Vector3 cellWorldPos = maze.GetCellWorldPos(currentCell);
         transform.position = new Vector3(cellWorldPos.x, transform.position.y, cellWorldPos.z);
@@ -86,7 +79,6 @@ public class HorrorNPC : MonoBehaviour
 
     IEnumerator Patrol()
     {
-        // Play patrol audio if not already playing
         if (!audioSource.isPlaying || audioSource.clip != patrolClip)
         {
             audioSource.clip = patrolClip;
@@ -94,17 +86,15 @@ public class HorrorNPC : MonoBehaviour
             audioSource.Play();
         }
 
-        // 5% chance to disappear
         if (Random.value < 0.05f)
         {
-           // currentState = NPCState.Disappearing;
-           // yield break;
+            // currentState = NPCState.Disappearing;
+            // yield break;
         }
 
         Vector2Int currentCell = GetCellFromPosition(transform.position);
         List<Vector2Int> neighbors = maze.GetWalkableNeighbors(currentCell);
 
-        // Remove last cell to avoid immediate backtracking
         if (neighbors.Contains(lastCell) && neighbors.Count > 1)
             neighbors.Remove(lastCell);
 
@@ -166,17 +156,14 @@ public class HorrorNPC : MonoBehaviour
     {
         while (currentState == NPCState.Chasing && player != null)
         {
-            // Check distance to player
             float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-            // Transition to Caught state if close enough
             if (distanceToPlayer <= catchDistance)
             {
                 currentState = NPCState.Caught;
                 yield break;
             }
 
-            // If player is too far, return to patrolling
             if (distanceToPlayer > 10f)
             {
                 currentState = NPCState.Patrolling;
@@ -211,44 +198,53 @@ public class HorrorNPC : MonoBehaviour
         audioSource.loop = false;
         audioSource.PlayOneShot(catchClip);
 
-     // Freeze player and NPC
-PlayerFirstPerson playerControls = player.GetComponent<PlayerFirstPerson>();
-playerControls.isCanMove = false;
-playerControls.ResetCamara();
+        // Get player controls
+        PlayerFirstPerson playerControls = player.GetComponent<PlayerFirstPerson>();
 
-// Position the player at offset
-Vector3 offsetPos = transform.position + transform.forward * 0.3f;
-offsetPos.y = transform.position.y+.366f; // keep player’s original Y height
-player.position = offsetPos;
+        // CRITICAL: Disable player controls FIRST to stop any input processing
+        playerControls.isCanMove = false;
 
-// Make the player face the NPC but only on Y axis (face-to-face)
-Vector3 lookDir = transform.position - player.position;
-lookDir.y = 0f; // ignore vertical difference
-if (lookDir.sqrMagnitude > 0.001f)
-{
-    Quaternion lookRotation = Quaternion.LookRotation(lookDir);
-    // Ensure only Y-axis rotation is applied
-    Vector3 eulerAngles = lookRotation.eulerAngles;
-    player.rotation = Quaternion.Euler(0, eulerAngles.y, 0);
-}
+        // Wait one frame to ensure all input is cleared
+        yield return null;
 
+        // NOW reset and position camera
+        playerControls.ResetCamara();
 
-            
-        
+        // Position the player at offset in front of NPC
+        Vector3 offsetPos = transform.position + transform.forward * 0.3f;
+        offsetPos.y = transform.position.y + 0.366f;
+        player.position = offsetPos;
+
+        // Make the player face the NPC (Y-axis only for horizontal rotation)
+        Vector3 lookDir = transform.position - player.position;
+        lookDir.y = 0f; // Ignore vertical difference
+
+        if (lookDir.sqrMagnitude > 0.001f)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(lookDir);
+            // Apply only Y-axis rotation to player transform
+            player.rotation = Quaternion.Euler(0, lookRotation.eulerAngles.y, 0);
+        }
+
+        // IMPORTANT: Reset camera again after positioning to ensure it's perfectly aligned
+        playerControls.ResetCamara();
+
+        // Lock the camera to look straight ahead at NPC
+        // The camera should now be at 0,0,0 local rotation (looking forward)
+        // and the player is rotated to face the NPC
+
         // Wait during "caught" stare
         yield return new WaitForSeconds(4f);
 
         // Reset player
+        player.position = maze.StartPos;
         playerControls.isCanMove = true;
-        player.position= maze.StartPos;
         player = null;
-
 
         // Reset NPC
         isPlayerCaught = false;
         TeleportToRandomPosition();
         vfx.SetActive(true);
-      
 
         // Return to patrolling
         currentState = NPCState.Patrolling;
@@ -256,11 +252,10 @@ if (lookDir.sqrMagnitude > 0.001f)
 
     IEnumerator MoveToPosition(Vector3 targetPos)
     {
-        if (isPlayerCaught) yield break; // Don't move if caught
+        if (isPlayerCaught) yield break;
 
         Vector3 startPos = transform.position;
 
-        // Rotate to face direction
         Vector3 dir = (targetPos - startPos).normalized;
         if (dir != Vector3.zero)
         {
@@ -287,7 +282,6 @@ if (lookDir.sqrMagnitude > 0.001f)
 
     Vector2Int GetCellFromPosition(Vector3 pos)
     {
-        // Convert world pos to cell indices based on cell size
         int x = Mathf.RoundToInt(pos.x / maze.CellSize);
         int z = Mathf.RoundToInt(pos.z / maze.CellSize);
 
@@ -296,9 +290,6 @@ if (lookDir.sqrMagnitude > 0.001f)
 
         return new Vector2Int(x, z);
     }
-
-
-
 
     List<Vector2Int> FindPath(Vector2Int start, Vector2Int goal)
     {
@@ -347,83 +338,83 @@ if (lookDir.sqrMagnitude > 0.001f)
         return path;
     }
 
-
-    // Optional: Add a method to stop all music when in despair
     public void StopAllMusic()
     {
         audioSource.Stop();
         if (AudioManager.Instance != null)
         {
-            // Assuming AudioManager has a method to stop all music
             // AudioManager.Instance.StopAllMusic();
         }
     }
-private Vector3 gizmoCenter; 
-private Vector3 gizmoHalfExtents; 
-private Quaternion gizmoRotation; 
-private Vector3 gizmoDirection; 
-private float gizmoDistance;
 
-private void Update()
-{
-    // BoxCast settings               
-    gizmoHalfExtents = new Vector3(1.5f, 1.5f, 1.5f);
-    gizmoDistance = 5f;
-    gizmoDirection = transform.forward;
-    gizmoRotation = transform.rotation;
-    gizmoCenter = transform.position;
+    private Vector3 gizmoCenter;
+    private Vector3 gizmoHalfExtents;
+    private Quaternion gizmoRotation;
+    private Vector3 gizmoDirection;
+    private float gizmoDistance;
 
-    if (currentState == NPCState.Caught) return;
-
-    // First BoxCast - Forward detection (your original)
-    RaycastHit hit;
-    if (Physics.BoxCast(gizmoCenter, gizmoHalfExtents, gizmoDirection, out hit, gizmoRotation, gizmoDistance))
+    private void Update()
     {
-        if (hit.collider.CompareTag("Player"))
-        {
-            player = hit.collider.transform;
-            currentState = NPCState.Chasing;
+        gizmoHalfExtents = new Vector3(1.5f, 1.5f, 1.5f);
+        gizmoDistance = 5f;
+        gizmoDirection = transform.forward;
+        gizmoRotation = transform.rotation;
+        gizmoCenter = transform.position;
 
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.Play("Scream");
+        if (currentState == NPCState.Caught) return;
+
+        // Forward detection
+        RaycastHit hit;
+        if (Physics.BoxCast(gizmoCenter, gizmoHalfExtents, gizmoDirection, out hit, gizmoRotation, gizmoDistance))
+        {
+            if (hit.collider.CompareTag("Player"))
+            {
+                player = hit.collider.transform;
+                currentState = NPCState.Chasing;
+
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.Play("Scream");
+            }
+        }
+
+        // Check at NPC position for players approaching from behind/sides
+        Collider[] overlapping = Physics.OverlapBox(gizmoCenter, gizmoHalfExtents, gizmoRotation);
+        foreach (Collider col in overlapping)
+        {
+            if (col.CompareTag("Player"))
+            {
+                player = col.transform;
+                currentState = NPCState.Chasing;
+
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.Play("Scream");
+                break;
+            }
         }
     }
 
-    // Second BoxCast - Check at NPC position (start box) for players approaching from behind/sides
-    Collider[] overlapping = Physics.OverlapBox(gizmoCenter, gizmoHalfExtents, gizmoRotation);
-    foreach (Collider col in overlapping)
+    public void StopNpc()
     {
-        if (col.CompareTag("Player"))
-        {
-            player = col.transform;
-            currentState = NPCState.Chasing;
-
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.Play("Scream");
-            break; // Exit loop once player is found
-        }
+        StopAllCoroutines();
+        audioSource.Stop();
     }
-}
-private void OnDrawGizmos()
-{
-    // Only draw in Play Mode when values are valid
-    if (!Application.isPlaying) return;
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
 
         Gizmos.color = Color.blue;
         Gizmos.DrawWireSphere(gizmoCenter, catchDistance);
 
-    // Draw start box
+        // Draw start box
         Matrix4x4 matrix = Matrix4x4.TRS(gizmoCenter, gizmoRotation, Vector3.one);
-    Gizmos.color = Color.red;
-    Gizmos.matrix = matrix;
-    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
+        Gizmos.color = Color.red;
+        Gizmos.matrix = matrix;
+        Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
 
-    // Draw end box
-    Vector3 end = gizmoCenter + gizmoDirection.normalized * gizmoDistance;
-    matrix = Matrix4x4.TRS(end, gizmoRotation, Vector3.one);
-    Gizmos.matrix = matrix;
-    Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
-}
-
-    
+        // Draw end box
+        Vector3 end = gizmoCenter + gizmoDirection.normalized * gizmoDistance;
+        matrix = Matrix4x4.TRS(end, gizmoRotation, Vector3.one);
+        Gizmos.matrix = matrix;
+        Gizmos.DrawWireCube(Vector3.zero, gizmoHalfExtents * 2);
+    }
 }

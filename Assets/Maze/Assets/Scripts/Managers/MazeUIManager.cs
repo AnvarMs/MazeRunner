@@ -22,7 +22,9 @@ public class MazeUIManager : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private Toggle mobileUIToggle, mobileUIToggle2;
     private bool isPaused = false;
+  
 
+    PlayerFirstPerson Pfp;
     private void Start()
     {
         
@@ -35,10 +37,12 @@ public class MazeUIManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         isPaused = false;
-        Time.timeScale = 0f;
+        
+        
         mobileUIToggle.onValueChanged.AddListener(ToggleMobileUI);
         mobileUIToggle2.onValueChanged.AddListener(ToggleMobileUI);
 
+        Pfp = player.GetComponent<PlayerFirstPerson>();
     }
 
     // Called by Start Button
@@ -52,7 +56,7 @@ public class MazeUIManager : MonoBehaviour
         panelMainMenu.SetActive(false);
         ToggleMobileUI(mobileUIToggle.isOn);
         // Player spawning
-        PlayerFirstPerson Pfp = player.GetComponent<PlayerFirstPerson>();
+       
         Pfp.SpownAt(mazeManager.StartPos);
         Pfp.StartGame();
 
@@ -62,37 +66,43 @@ public class MazeUIManager : MonoBehaviour
     // Called when the player reaches the goal
     public void ShowWinPanel()
     {
+        Pfp.isCanMove = false;
         panelWin.SetActive(true);
+        horrorNPC.StopNpc();
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-        Time.timeScale = 0f;
+        
     }
 
     public void OnReplay()
     {
-        // Regenerate with same size
-        mazeManager.GenerateMazePublic();
-
-        panelWin.SetActive(false);
-
         // Lock cursor again
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-        Time.timeScale = 1f;
+
+        panelWin.SetActive(false);
+
+        Pfp.SpownAt(mazeManager.StartPos);
+        Pfp.StartGame();
+        horrorNPC.StartNPC();
     }
 
-     public void OnQuit()
-{
+    public void OnQuit()
+    {
 #if UNITY_EDITOR
-    UnityEditor.EditorApplication.isPlaying = false;
+        UnityEditor.EditorApplication.isPlaying = false;
 #elif UNITY_WEBGL
-    // In WebGL – cannot quit app. Show menu or message instead.
-    ShowMainMenu(); // create a method to go back to your main menu
+    // Show main menu instead of trying to quit
+    if (!panelMainMenu.activeSelf)
+    {
+        ShowMainMenu();
+    }
+   
 #else
     Application.Quit();
 #endif
-}
+    }
 
     private void ShowMainMenu()
     {
@@ -111,7 +121,7 @@ public class MazeUIManager : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        if (Keyboard.current.escapeKey.wasPressedThisFrame&& !panelMainMenu.activeSelf)
         {
             TogglePause();
         }

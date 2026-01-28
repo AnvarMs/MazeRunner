@@ -1,12 +1,12 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.UI;
+using System.Collections.Generic;
+using TMPro; // If you have TextMeshPro, otherwise use UnityEngine.UI.Text
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(AudioSource))]
-public class PlayerFirstPerson : MonoBehaviour
+public class PlayerFirstPersonDebug : MonoBehaviour
 {
     [Header("Movement Settings")]
     public float walkSpeed = 5f;
@@ -14,13 +14,7 @@ public class PlayerFirstPerson : MonoBehaviour
 
     [Header("Mouse Look Settings")]
     public float mouseSensitivity = 2f;
-    public TMPro.TextMeshProUGUI mouseSliderValueText;
-    public Slider mouseSlider;
-    public TMPro.TextMeshProUGUI mobileSliderValueText;
-    public Slider mobileSlider;
     public float mobileSensitivity = 0.5f;
-    [Range(0f, 1f)]
-    public float mobileSmoothing = 0.5f;
 
     [Header("Footstep Settings")]
     public AudioClip footstep1;
@@ -32,8 +26,12 @@ public class PlayerFirstPerson : MonoBehaviour
     public MobileJoystick joystick;
     public RectTransform joystickArea;
 
+    [Header("Debug UI")]
+    public TextMeshProUGUI debugText; // Assign a UI Text element to see debug info
+
     [Header("Settings")]
     public bool isCanMove;
+    public bool showDebug = true;
 
     private CharacterController controller;
     private AudioSource audioSource;
@@ -47,64 +45,29 @@ public class PlayerFirstPerson : MonoBehaviour
     private float distanceSinceStep = 0f;
 
     // Input
-    private PlayerControls controls;
     private Vector2 moveInput;
     private bool isMobile = false;
 
-    // Smooth camera rotation
-    private Vector2 currentRotationVelocity = Vector2.zero;
-    private Vector2 targetRotationDelta = Vector2.zero;
-
-    // Touch tracking
+    // Manual touch tracking
     private class TouchInfo
     {
         public int fingerId;
+        public Vector2 startPosition;
         public Vector2 lastPosition;
-        public bool canRotateCamera;
+        public bool startedOnUI;
+        public bool startedOnJoystick;
+        public bool isLookTouch;
     }
 
     private Dictionary<int, TouchInfo> activeTouches = new Dictionary<int, TouchInfo>();
+    private int lookTouchId = -1;
 
     private void Awake()
     {
         isCanMove = false;
         controller = GetComponent<CharacterController>();
         audioSource = GetComponent<AudioSource>();
-        isMobile = Application.isMobilePlatform;
-
-        mouseSlider.onValueChanged.AddListener((value) =>
-        {
-            mouseSensitivity = value;
-            if (mouseSliderValueText != null)
-            {
-                mouseSliderValueText.text = "Mouse:" + value.ToString("F2");
-            }
-        });
-
-        mobileSlider.onValueChanged.AddListener((value) =>
-        {
-            mobileSensitivity = value;
-            if (mobileSliderValueText != null)
-            {
-                mobileSliderValueText.text = "Mobile:" + value.ToString("F2");
-            }
-        });
-
-        controls = new PlayerControls();
-
-        // Subscribe to input actions
-        controls.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        controls.Player.Move.canceled += ctx => moveInput = Vector2.zero;
-    }
-
-    private void OnEnable()
-    {
-        controls.Player.Enable();
-    }
-
-    private void OnDisable()
-    {
-        controls.Player.Disable();
+        isMobile = Application.isMobilePlatform || Application.isEditor; // Force mobile mode in editor for testing
     }
 
     public void StartGame()
@@ -121,18 +84,11 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Update()
     {
-        // CRITICAL FIX: Check isCanMove BEFORE processing any input
-        if (!isCanMove)
-        {
-            // Clear all input when not allowed to move
-            ClearAllInput();
-            return;
-        }
+        if (!isCanMove) return;
 
         if (isMobile)
         {
             ProcessTouches();
-            ApplySmoothRotation();
         }
         else
         {
@@ -141,31 +97,24 @@ public class PlayerFirstPerson : MonoBehaviour
 
         HandleMovement();
         HandleFootsteps();
-    }
 
-    // NEW METHOD: Clear all input states
-    private void ClearAllInput()
-    {
-        // Clear touch tracking
-        activeTouches.Clear();
-
-        // Clear rotation velocities
-        currentRotationVelocity = Vector2.zero;
-        targetRotationDelta = Vector2.zero;
-
-        // Clear movement input
-        moveInput = Vector2.zero;
+        UpdateDebugUI();
     }
 
     private void ProcessTouches()
     {
-        if (Touchscreen.current == null) return;
+        if (Touchscreen.current == null)
+        {
+            if (showDebug) Debug.Log("No Touchscreen detected!");
+            return;
+        }
 
         var touches = Touchscreen.current.touches;
-        Vector2 frameRotationDelta = Vector2.zero;
-        bool hasLookTouch = false;
 
-        // First pass: Update existing touches and add new ones
+        // Track which touch IDs are still active this frame
+        HashSet<int> currentActiveTouches = new HashSet<int>();
+
+        // Process all touches
         for (int i = 0; i < touches.Count; i++)
         {
             var touch = touches[i];
@@ -175,7 +124,9 @@ public class PlayerFirstPerson : MonoBehaviour
             Vector2 position = touch.position.ReadValue();
             var phase = touch.phase.ReadValue();
 
-            // NEW TOUCH STARTED
+            currentActiveTouches.Add(fingerId);
+
+            // Touch just started
             if (phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
                 bool onUI = IsPointerOverUI(position);
@@ -184,102 +135,95 @@ public class PlayerFirstPerson : MonoBehaviour
                 TouchInfo info = new TouchInfo
                 {
                     fingerId = fingerId,
+                    startPosition = position,
                     lastPosition = position,
-                    canRotateCamera = !onUI && !onJoystick
+                    startedOnUI = onUI,
+                    startedOnJoystick = onJoystick,
+                    isLookTouch = false
                 };
 
                 activeTouches[fingerId] = info;
+
+                if (showDebug)
+                {
+                    Debug.Log($"[TOUCH BEGIN] ID: {fingerId} | Pos: {position} | OnUI: {onUI} | OnJoystick: {onJoystick}");
+                }
+
+                // Check if this can be our look touch
+                if (lookTouchId == -1 && !onUI && !onJoystick)
+                {
+                    lookTouchId = fingerId;
+                    info.isLookTouch = true;
+                    if (showDebug) Debug.Log($"[LOOK TOUCH ASSIGNED] ID: {fingerId}");
+                }
             }
-            // EXISTING TOUCH MOVING
-            else if (activeTouches.ContainsKey(fingerId))
+            // Touch is moving
+            else if (phase == UnityEngine.InputSystem.TouchPhase.Moved && activeTouches.ContainsKey(fingerId))
             {
                 TouchInfo info = activeTouches[fingerId];
-
-                // Calculate delta
                 Vector2 delta = position - info.lastPosition;
 
-                // Accumulate rotation delta from all camera-controlling touches
-                if (info.canRotateCamera)
+                // Check current UI state for debugging
+                bool currentlyOnUI = IsPointerOverUI(position);
+                bool currentlyOnJoystick = IsPositionOverJoystick(position);
+
+                if (showDebug && (currentlyOnUI || currentlyOnJoystick))
                 {
-                    frameRotationDelta += delta;
-                    hasLookTouch = true;
+                    Debug.Log($"[TOUCH MOVE] ID: {fingerId} | IsLookTouch: {info.isLookTouch} | CurrentlyOnUI: {currentlyOnUI} | CurrentlyOnJoystick: {currentlyOnJoystick} | StartedOnUI: {info.startedOnUI} | StartedOnJoystick: {info.startedOnJoystick}");
                 }
 
-                // Update last position
+                // If this is our look touch AND it didn't start on UI/joystick
+                if (fingerId == lookTouchId && info.isLookTouch)
+                {
+                    // Apply camera rotation REGARDLESS of current position
+                    float rotX = delta.x * mobileSensitivity;
+                    float rotY = delta.y * mobileSensitivity;
+
+                    xRotation -= rotY;
+                    xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+
+                    cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+                    transform.Rotate(Vector3.up * rotX);
+
+                    if (showDebug && delta.magnitude > 1f)
+                    {
+                        Debug.Log($"[CAMERA ROTATED] Delta: {delta} | RotX: {rotX} | RotY: {rotY}");
+                    }
+                }
+
                 info.lastPosition = position;
             }
-        }
-
-        // Set target rotation (will be smoothed)
-        if (hasLookTouch)
-        {
-            // Normalize large deltas to prevent jitter from sudden movements
-            float maxDelta = 50f;
-            if (frameRotationDelta.magnitude > maxDelta)
+            // Touch ended
+            else if (phase == UnityEngine.InputSystem.TouchPhase.Ended ||
+                     phase == UnityEngine.InputSystem.TouchPhase.Canceled)
             {
-                frameRotationDelta = frameRotationDelta.normalized * maxDelta;
-            }
-
-            targetRotationDelta = frameRotationDelta;
-        }
-        else
-        {
-            // No look touch active, decay to zero
-            targetRotationDelta = Vector2.zero;
-        }
-
-        // Second pass: Remove ended touches
-        List<int> touchesToRemove = new List<int>();
-
-        foreach (var kvp in activeTouches)
-        {
-            bool stillActive = false;
-
-            for (int i = 0; i < touches.Count; i++)
-            {
-                var touch = touches[i];
-                if (touch.isInProgress && touch.touchId.ReadValue() == kvp.Key)
+                if (showDebug)
                 {
-                    stillActive = true;
-                    break;
+                    Debug.Log($"[TOUCH END] ID: {fingerId} | WasLookTouch: {activeTouches.ContainsKey(fingerId) && activeTouches[fingerId].isLookTouch}");
                 }
             }
+        }
 
-            if (!stillActive)
+        // Clean up ended touches
+        List<int> touchesToRemove = new List<int>();
+        foreach (var kvp in activeTouches)
+        {
+            if (!currentActiveTouches.Contains(kvp.Key))
             {
                 touchesToRemove.Add(kvp.Key);
+
+                // Reset look touch if this was it
+                if (kvp.Key == lookTouchId)
+                {
+                    lookTouchId = -1;
+                    if (showDebug) Debug.Log($"[LOOK TOUCH RELEASED] ID: {kvp.Key}");
+                }
             }
         }
 
         foreach (int id in touchesToRemove)
         {
             activeTouches.Remove(id);
-        }
-    }
-
-    private void ApplySmoothRotation()
-    {
-        // Smooth damp towards target rotation
-        float smoothTime = Mathf.Lerp(0.001f, 0.1f, mobileSmoothing);
-
-        currentRotationVelocity = Vector2.SmoothDamp(
-            currentRotationVelocity,
-            targetRotationDelta,
-            ref currentRotationVelocity,
-            smoothTime
-        );
-
-        // Apply smoothed rotation
-        if (currentRotationVelocity.magnitude > 0.01f)
-        {
-            float rotX = currentRotationVelocity.x * mobileSensitivity * Time.deltaTime * 60f;
-            float rotY = currentRotationVelocity.y * mobileSensitivity * Time.deltaTime * 60f;
-
-            xRotation -= rotY;
-            xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-
-            cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-            transform.Rotate(Vector3.up * rotX);
         }
     }
 
@@ -373,32 +317,42 @@ public class PlayerFirstPerson : MonoBehaviour
         }
     }
 
+    private void UpdateDebugUI()
+    {
+        if (debugText != null && showDebug)
+        {
+            string info = $"Active Touches: {activeTouches.Count}\n";
+            info += $"Look Touch ID: {lookTouchId}\n";
+            info += $"Joystick: H={joystick?.Horizontal:F2}, V={joystick?.Vertical:F2}\n";
+            info += $"Camera Rotation: {xRotation:F1}\n\n";
+
+            foreach (var kvp in activeTouches)
+            {
+                TouchInfo t = kvp.Value;
+                info += $"Touch {t.fingerId}:\n";
+                info += $"  IsLook: {t.isLookTouch}\n";
+                info += $"  StartUI: {t.startedOnUI}\n";
+                info += $"  StartJoy: {t.startedOnJoystick}\n";
+                info += $"  Pos: {t.lastPosition}\n\n";
+            }
+
+            debugText.text = info;
+        }
+    }
+
     public void SpownAt(Vector3 pos)
     {
-        // ✅ FIX: Disable CharacterController, set position, re-enable
-        controller.enabled = false;
         transform.position = pos;
-        controller.enabled = true;
-
-        // Reset vertical velocity so player doesn't fall through
-        verticalVelocity = 0f;
-
-        Debug.Log($"Player spawned at: {pos}");
     }
 
     public void ResetCamara()
     {
-        // Clear all rotation states
+        cameraTransform.rotation = Quaternion.identity;
         xRotation = 0f;
-        currentRotationVelocity = Vector2.zero;
-        targetRotationDelta = Vector2.zero;
-
-        // Reset camera to identity
-        cameraTransform.localRotation = Quaternion.identity;
-
-        // Clear touch tracking
-        activeTouches.Clear();
     }
 
-    
+    public void MobileInput(float x, float z)
+    {
+        moveInput = new Vector2(x, z);
+    }
 }

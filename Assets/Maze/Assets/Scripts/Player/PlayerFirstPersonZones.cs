@@ -1,12 +1,11 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.UI;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(AudioSource))]
-public class PlayerFirstPerson : MonoBehaviour
+public class PlayerFirstPersonZones : MonoBehaviour
 {
     [Header("Movement Settings")]
     public float walkSpeed = 5f;
@@ -14,13 +13,12 @@ public class PlayerFirstPerson : MonoBehaviour
 
     [Header("Mouse Look Settings")]
     public float mouseSensitivity = 2f;
-    public TMPro.TextMeshProUGUI mouseSliderValueText;
-    public Slider mouseSlider;
-    public TMPro.TextMeshProUGUI mobileSliderValueText;
-    public Slider mobileSlider;
     public float mobileSensitivity = 0.5f;
-    [Range(0f, 1f)]
-    public float mobileSmoothing = 0.5f;
+
+    [Header("Screen Zones")]
+    [Range(0.3f, 0.7f)]
+    public float screenSplitRatio = 0.5f; // 0.5 = 50% left is joystick zone, 50% right is look zone
+    public bool showZoneDebug = false; // Draw visual debug lines
 
     [Header("Footstep Settings")]
     public AudioClip footstep1;
@@ -30,7 +28,6 @@ public class PlayerFirstPerson : MonoBehaviour
     [Header("References")]
     public Transform cameraTransform;
     public MobileJoystick joystick;
-    public RectTransform joystickArea;
 
     [Header("Settings")]
     public bool isCanMove;
@@ -47,23 +44,19 @@ public class PlayerFirstPerson : MonoBehaviour
     private float distanceSinceStep = 0f;
 
     // Input
-    private PlayerControls controls;
     private Vector2 moveInput;
     private bool isMobile = false;
 
-    // Smooth camera rotation
-    private Vector2 currentRotationVelocity = Vector2.zero;
-    private Vector2 targetRotationDelta = Vector2.zero;
-
-    // Touch tracking
+    // Zone-based touch tracking
     private class TouchInfo
     {
         public int fingerId;
         public Vector2 lastPosition;
-        public bool canRotateCamera;
+        public bool isInLookZone; // Right side of screen
     }
 
     private Dictionary<int, TouchInfo> activeTouches = new Dictionary<int, TouchInfo>();
+    private float screenSplitX; // Calculated split position in pixels
 
     private void Awake()
     {
@@ -72,39 +65,12 @@ public class PlayerFirstPerson : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         isMobile = Application.isMobilePlatform;
 
-        mouseSlider.onValueChanged.AddListener((value) =>
-        {
-            mouseSensitivity = value;
-            if (mouseSliderValueText != null)
-            {
-                mouseSliderValueText.text = "Mouse:" + value.ToString("F2");
-            }
-        });
-
-        mobileSlider.onValueChanged.AddListener((value) =>
-        {
-            mobileSensitivity = value;
-            if (mobileSliderValueText != null)
-            {
-                mobileSliderValueText.text = "Mobile:" + value.ToString("F2");
-            }
-        });
-
-        controls = new PlayerControls();
-
-        // Subscribe to input actions
-        controls.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        controls.Player.Move.canceled += ctx => moveInput = Vector2.zero;
+        CalculateScreenSplit();
     }
 
-    private void OnEnable()
+    private void CalculateScreenSplit()
     {
-        controls.Player.Enable();
-    }
-
-    private void OnDisable()
-    {
-        controls.Player.Disable();
+        screenSplitX = Screen.width * screenSplitRatio;
     }
 
     public void StartGame()
@@ -121,18 +87,17 @@ public class PlayerFirstPerson : MonoBehaviour
 
     private void Update()
     {
-        // CRITICAL FIX: Check isCanMove BEFORE processing any input
-        if (!isCanMove)
+        if (!isCanMove) return;
+
+        // Recalculate split if screen size changes
+        if (Mathf.Abs(screenSplitX - (Screen.width * screenSplitRatio)) > 1f)
         {
-            // Clear all input when not allowed to move
-            ClearAllInput();
-            return;
+            CalculateScreenSplit();
         }
 
         if (isMobile)
         {
             ProcessTouches();
-            ApplySmoothRotation();
         }
         else
         {
@@ -143,18 +108,36 @@ public class PlayerFirstPerson : MonoBehaviour
         HandleFootsteps();
     }
 
-    // NEW METHOD: Clear all input states
-    private void ClearAllInput()
+    private void OnGUI()
     {
-        // Clear touch tracking
-        activeTouches.Clear();
+        // Debug visualization of screen zones
+        if (showZoneDebug && isMobile)
+        {
+            // Draw split line
+            Texture2D lineTex = new Texture2D(1, 1);
+            lineTex.SetPixel(0, 0, Color.yellow);
+            lineTex.Apply();
 
-        // Clear rotation velocities
-        currentRotationVelocity = Vector2.zero;
-        targetRotationDelta = Vector2.zero;
+            GUI.DrawTexture(new Rect(screenSplitX - 2, 0, 4, Screen.height), lineTex);
 
-        // Clear movement input
-        moveInput = Vector2.zero;
+            // Draw labels
+            GUIStyle style = new GUIStyle();
+            style.normal.textColor = Color.white;
+            style.fontSize = 24;
+            style.alignment = TextAnchor.MiddleCenter;
+
+            GUI.Label(new Rect(0, 50, screenSplitX, 50), "JOYSTICK ZONE", style);
+            GUI.Label(new Rect(screenSplitX, 50, Screen.width - screenSplitX, 50), "LOOK ZONE", style);
+
+            // Show active touches
+            foreach (var touch in activeTouches.Values)
+            {
+                Color touchColor = touch.isInLookZone ? Color.cyan : Color.green;
+                lineTex.SetPixel(0, 0, touchColor);
+                lineTex.Apply();
+                GUI.DrawTexture(new Rect(touch.lastPosition.x - 25, Screen.height - touch.lastPosition.y - 25, 50, 50), lineTex);
+            }
+        }
     }
 
     private void ProcessTouches()
@@ -162,10 +145,8 @@ public class PlayerFirstPerson : MonoBehaviour
         if (Touchscreen.current == null) return;
 
         var touches = Touchscreen.current.touches;
-        Vector2 frameRotationDelta = Vector2.zero;
-        bool hasLookTouch = false;
 
-        // First pass: Update existing touches and add new ones
+        // Update existing and add new touches
         for (int i = 0; i < touches.Count; i++)
         {
             var touch = touches[i];
@@ -175,76 +156,63 @@ public class PlayerFirstPerson : MonoBehaviour
             Vector2 position = touch.position.ReadValue();
             var phase = touch.phase.ReadValue();
 
-            // NEW TOUCH STARTED
+            // NEW TOUCH
             if (phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
-                bool onUI = IsPointerOverUI(position);
-                bool onJoystick = IsPositionOverJoystick(position);
+                // Determine zone based on X position
+                bool isInLookZone = position.x > screenSplitX;
 
                 TouchInfo info = new TouchInfo
                 {
                     fingerId = fingerId,
                     lastPosition = position,
-                    canRotateCamera = !onUI && !onJoystick
+                    isInLookZone = isInLookZone
                 };
 
                 activeTouches[fingerId] = info;
+
+                // If touch starts in joystick zone, activate joystick
+                if (!isInLookZone && joystick != null)
+                {
+                    // Let joystick handle it naturally through its own event system
+                }
             }
-            // EXISTING TOUCH MOVING
+            // MOVING TOUCH
             else if (activeTouches.ContainsKey(fingerId))
             {
                 TouchInfo info = activeTouches[fingerId];
-
-                // Calculate delta
                 Vector2 delta = position - info.lastPosition;
 
-                // Accumulate rotation delta from all camera-controlling touches
-                if (info.canRotateCamera)
+                // ONLY touches in the LOOK ZONE can rotate camera
+                if (info.isInLookZone && delta.magnitude > 0.1f)
                 {
-                    frameRotationDelta += delta;
-                    hasLookTouch = true;
+                    float rotX = delta.x * mobileSensitivity;
+                    float rotY = delta.y * mobileSensitivity;
+
+                    xRotation -= rotY;
+                    xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+
+                    cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+                    transform.Rotate(Vector3.up * rotX);
                 }
 
-                // Update last position
                 info.lastPosition = position;
             }
         }
 
-        // Set target rotation (will be smoothed)
-        if (hasLookTouch)
-        {
-            // Normalize large deltas to prevent jitter from sudden movements
-            float maxDelta = 50f;
-            if (frameRotationDelta.magnitude > maxDelta)
-            {
-                frameRotationDelta = frameRotationDelta.normalized * maxDelta;
-            }
-
-            targetRotationDelta = frameRotationDelta;
-        }
-        else
-        {
-            // No look touch active, decay to zero
-            targetRotationDelta = Vector2.zero;
-        }
-
-        // Second pass: Remove ended touches
+        // Remove ended touches
         List<int> touchesToRemove = new List<int>();
-
         foreach (var kvp in activeTouches)
         {
             bool stillActive = false;
-
             for (int i = 0; i < touches.Count; i++)
             {
-                var touch = touches[i];
-                if (touch.isInProgress && touch.touchId.ReadValue() == kvp.Key)
+                if (touches[i].isInProgress && touches[i].touchId.ReadValue() == kvp.Key)
                 {
                     stillActive = true;
                     break;
                 }
             }
-
             if (!stillActive)
             {
                 touchesToRemove.Add(kvp.Key);
@@ -255,56 +223,6 @@ public class PlayerFirstPerson : MonoBehaviour
         {
             activeTouches.Remove(id);
         }
-    }
-
-    private void ApplySmoothRotation()
-    {
-        // Smooth damp towards target rotation
-        float smoothTime = Mathf.Lerp(0.001f, 0.1f, mobileSmoothing);
-
-        currentRotationVelocity = Vector2.SmoothDamp(
-            currentRotationVelocity,
-            targetRotationDelta,
-            ref currentRotationVelocity,
-            smoothTime
-        );
-
-        // Apply smoothed rotation
-        if (currentRotationVelocity.magnitude > 0.01f)
-        {
-            float rotX = currentRotationVelocity.x * mobileSensitivity * Time.deltaTime * 60f;
-            float rotY = currentRotationVelocity.y * mobileSensitivity * Time.deltaTime * 60f;
-
-            xRotation -= rotY;
-            xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-
-            cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-            transform.Rotate(Vector3.up * rotX);
-        }
-    }
-
-    private bool IsPointerOverUI(Vector2 screenPosition)
-    {
-        if (EventSystem.current == null) return false;
-
-        PointerEventData eventData = new PointerEventData(EventSystem.current);
-        eventData.position = screenPosition;
-
-        var results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventData, results);
-
-        return results.Count > 0;
-    }
-
-    private bool IsPositionOverJoystick(Vector2 screenPosition)
-    {
-        if (joystickArea == null) return false;
-
-        return RectTransformUtility.RectangleContainsScreenPoint(
-            joystickArea,
-            screenPosition,
-            null
-        );
     }
 
     private void HandleDesktopLook()
@@ -375,30 +293,30 @@ public class PlayerFirstPerson : MonoBehaviour
 
     public void SpownAt(Vector3 pos)
     {
-        // ✅ FIX: Disable CharacterController, set position, re-enable
-        controller.enabled = false;
         transform.position = pos;
-        controller.enabled = true;
-
-        // Reset vertical velocity so player doesn't fall through
-        verticalVelocity = 0f;
-
-        Debug.Log($"Player spawned at: {pos}");
     }
 
     public void ResetCamara()
     {
-        // Clear all rotation states
+        cameraTransform.rotation = Quaternion.identity;
         xRotation = 0f;
-        currentRotationVelocity = Vector2.zero;
-        targetRotationDelta = Vector2.zero;
-
-        // Reset camera to identity
-        cameraTransform.localRotation = Quaternion.identity;
-
-        // Clear touch tracking
-        activeTouches.Clear();
     }
 
-    
+    public void MobileInput(float x, float z)
+    {
+        moveInput = new Vector2(x, z);
+    }
+
+    // Public method to check which zone a position is in
+    public bool IsInLookZone(Vector2 screenPosition)
+    {
+        return screenPosition.x > screenSplitX;
+    }
+
+    // Public method to change split ratio at runtime
+    public void SetScreenSplit(float ratio)
+    {
+        screenSplitRatio = Mathf.Clamp(ratio, 0.3f, 0.7f);
+        CalculateScreenSplit();
+    }
 }
