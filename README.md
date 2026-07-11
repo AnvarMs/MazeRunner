@@ -1,12 +1,7 @@
 <div align="center">
-
-<img width="1920" height="1080" alt="Screenshot 2026-07-11 135129" src="https://github.com/user-attachments/assets/c09d3a2a-a423-446f-a886-45479ca5b3b8" />
-
-
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=26&pause=1000&color=FF3B3B&center=true&vCenter=true&width=650&lines=Maze+Runner;Procedural+Horror+Maze+%E2%80%94+Early+Access" alt="Typing SVG" />
 <br/>
-
-<img width="1920" height="1080" alt="Screenshot 2026-07-11 135043" src="https://github.com/user-attachments/assets/83e10c40-7318-49ee-beee-0824e8f1b11d" />
-
+<img src="https://skillicons.dev/icons?i=unity,cs&theme=dark" title="Unity, C#"/>
 
 <br/><br/>
 
@@ -28,10 +23,10 @@ Maze layouts are built using **recursive backtracking**, and the horror NPC hunt
 ## 🎥 Preview
 
 <div align="center">
-<img src="mazerunner-screenshots/corridor.png" width="80%"/>
+<img width="1920" height="1080" alt="Screenshot 2026-07-11 135043" src="https://github.com/user-attachments/assets/83e10c40-7318-49ee-beee-0824e8f1b11d" />
 <br/><i>Shifting maze corridors, lit only by a handheld light source</i>
 <br/><br/>
-<img src="mazerunner-screenshots/jumpscare.png" width="80%"/>
+<img width="1920" height="1080" alt="Screenshot 2026-07-11 135129" src="https://github.com/user-attachments/assets/c09d3a2a-a423-446f-a886-45479ca5b3b8" />
 <br/><i>...you don't want to find out what's waiting around the corner</i>
 </div>
 
